@@ -15,18 +15,6 @@ class ClusteredGraph(object):
         self.labs = labs
         self.L = np.diag(A.sum(axis=1)) - A # graph laplacian
 
-def partition(A, alpha='auto', n_clusters=2, init='random', random_state=None, 
-    n_init=1, max_iter=100):
-    '''For a given adjacency matrix, computes the optimal Dirichlet Parition
-    by perturbing the graph laplacian and rearranging at each iteration.
-    '''
-    # construct Graph Laplacian
-    # perturb, compute all eigs
-    # rearrange based on largest eig
-    # rinse and repeat
-    pass
-
-
 class DirichletPartition(object):
     '''Dirichlet Paritioning of a Graph
 
@@ -48,18 +36,17 @@ class DirichletPartition(object):
         alpha : (float) penalization on diagonal perturbation
 
         Returns:
-        Array-like vector of new zero-indexed cluster assignments.
+        Array-like vector of new zero-indexed cluster assignments, along with the objective value.
         '''
 
         out = np.zeros((L.shape[0], self.n_clusters)) #for storing the new labels
         for k in range(self.n_clusters):
             S = L + alpha*np.diag(init!=k)
-            _, eigs = la.eigh(S, eigvals=(0,0))
+            vals, eigs = la.eigh(S, eigvals=(0,0))
             if eigs[0,0]<0:
                 out[:,k] = -1 * eigs[:,0]
             else:
                 out[:,k] = eigs[:,0]
-
         return out.argmax(axis=1)
 
     def _check_is_connected(self, L):
@@ -72,11 +59,33 @@ class DirichletPartition(object):
     def _fit_broadcast(self):
         raise NotImplementedError
 
+    def _init(self, size):
+        '''Produces initialization labels.'''
+        c_size = size/self.n_clusters                
+        labs = [k for k in range(self.n_clusters) for _ in range(int(c_size))]
+        for _ in range(size % self.n_clusters):
+            labs.append(0)
+        if self.init=='random':
+            return np.random.choice(labs, size=size, replace=False)
+        else:
+            return labs
+
     def fit(self, A, method='rearrange', **kwargs):
         L = np.diag(A.sum(axis=1)) - A # laplacian
+        labs = self._init(L.shape[0])
+        converged, iters = False, 0
+        while (not converged) and (iters<self.max_iter):
+            old, labs = labs, self._rearrange(L, labs)
+            converged = np.all(old==labs)
+            iters += 1
+        
+        return labs
 
     def __init__(self, n_clusters=2, init='random', random_state=None,
         n_init=1, max_iter=100, tol=1e-6):
 
         self.n_clusters = n_clusters
         self.random_state = random_state
+        self.init = init
+        self.n_init = n_init
+        self.max_iter = max_iter

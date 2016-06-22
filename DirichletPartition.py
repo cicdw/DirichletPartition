@@ -42,7 +42,7 @@ class DirichletPartition(object):
         out = np.zeros((L.shape[0], self.n_clusters)) #for storing the new labels
         for k in range(self.n_clusters):
             S = L + alpha*np.diag(init!=k)
-            vals, eigs = la.eigh(S, eigvals=(0,0))
+            obj, eigs = la.eigh(S, eigvals=(0,0))
             if eigs[0,0]<0:
                 out[:,k] = -1 * eigs[:,0]
             else:
@@ -56,11 +56,16 @@ class DirichletPartition(object):
         vals, _ = la.eigh(L, eigvals=(0,1))
         return np.isclose(vals[1], 0)
 
+    def _check_labels(self, labs):
+        '''Checks whether a label has gone missing.'''
+        return len(np.unique(labs))==self.n_clusters
+
     def _fit_broadcast(self):
         raise NotImplementedError
 
     def _init(self, size):
-        '''Produces initialization labels.'''
+        '''Produces initialization labels.
+        Currently constructed to ensure all labels are present.'''
         c_size = size/self.n_clusters                
         labs = [k for k in range(self.n_clusters) for _ in range(int(c_size))]
         for _ in range(size % self.n_clusters):
